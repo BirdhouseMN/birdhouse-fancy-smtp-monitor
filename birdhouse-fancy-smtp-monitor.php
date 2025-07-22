@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.7
+ * Version: 1.0.8
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -21,12 +21,14 @@ if (file_exists($update_checker_file)) {
             __FILE__,
             'birdhouse-fancy-smtp-monitor'
         );
+        $updateChecker->getVcsApi()->setBranch('main');
     } else {
         error_log('[BFSM] plugin-update-checker.php included, but Puc_v4_Factory is not available.');
     }
 } else {
     error_log('[BFSM] plugin-update-checker.php not found. Skipping GitHub updater.');
 }
+
 
 // === Generate Token on Activation ===
 register_activation_hook(__FILE__, function () {
