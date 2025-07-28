@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.16
+ * Version: 1.0.17
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -138,12 +138,26 @@ function bfsmtp_status_check($request) {
 
 // === /token Endpoint Callback ===
 function bfsmtp_return_token($request) {
+    $force = sanitize_text_field($request->get_param('force'));
+
+    if ($force === '1') {
+        $new_token = wp_generate_password(32, false);
+        update_option('bfsmtp_site_token', $new_token);
+
+        return new WP_REST_Response([
+            'message'   => 'Token forcibly regenerated.',
+            'token'     => $new_token,
+            'timestamp' => current_time('mysql'),
+            'site_url'  => home_url(),
+        ], 200);
+    }
+
     $token = get_option('bfsmtp_site_token');
 
     if (!$token) {
-        return new WP_REST_Response([
-            'message' => 'Token not found'
-        ], 404);
+        // Regenerate if missing
+        $token = wp_generate_password(32, false);
+        update_option('bfsmtp_site_token', $token);
     }
 
     return new WP_REST_Response([
@@ -152,6 +166,7 @@ function bfsmtp_return_token($request) {
         'site_url'  => home_url(),
     ], 200);
 }
+
 
 // === Admin Notice for Token Regeneration Confirmation ===
 add_action('admin_notices', function () {
