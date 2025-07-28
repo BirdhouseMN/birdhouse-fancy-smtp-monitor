@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.17
+ * Version: 1.0.18
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -94,7 +94,7 @@ function bfsmtp_status_check($request) {
     }
 
     $subject = '[SMTP Monitor] Test Email';
-    $message = "âœ… This is a manual SMTP test triggered from the Birdhouse Manager.\n\nThat means your site successfully responded to a direct ping and sent this email using its current SMTP setup.\n\nIf you're reading this, everything is working as expected! ðŸŽ‰\n\nNo action is needed unless this email lands in spam or has unexpected formatting.";
+    $message = "his is a manual SMTP test triggered from the Birdhouse Manager.\n\nThat means your site successfully responded to a direct ping and sent this email using its current SMTP setup.\n\nIf you're reading this, everything is working as expected! No action is needed unless this email lands in spam or has unexpected formatting.";
     $headers = ['Content-Type: text/plain; charset=UTF-8'];
 
     $to = ($mode === 'auto') 
@@ -160,11 +160,17 @@ function bfsmtp_return_token($request) {
         update_option('bfsmtp_site_token', $token);
     }
 
-    return new WP_REST_Response([
+    $response = new WP_REST_Response([
         'token'     => $token,
         'timestamp' => current_time('mysql'),
         'site_url'  => home_url(),
-    ], 200);
+    ]);
+
+    $response->header('Cache-Control', 'no-cache, must-revalidate, max-age=0');
+    $response->header('Expires', 'Wed, 11 Jan 1984 05:00:00 GMT');
+
+    return $response;
+
 }
 
 
