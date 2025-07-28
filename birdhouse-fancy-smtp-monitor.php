@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.15
+ * Version: 1.0.16
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -98,7 +98,7 @@ function bfsmtp_status_check($request) {
     $headers = ['Content-Type: text/plain; charset=UTF-8'];
 
     $to = ($mode === 'auto') 
-        ? 'noreply@birdhousemanager.com' 
+        ? 'security@birdhousemanager.com' 
         : (is_email($notify_param) ? $notify_param : get_option('admin_email'));
 
     // Force the sender address
