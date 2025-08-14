@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.18
+ * Version: 1.0.19
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -15,6 +15,7 @@ $update_checker_file = plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin
 if (file_exists($update_checker_file)) {
     require_once $update_checker_file;
 
+    // Keep the namespaced PUC v5 factory as in your original 1.0.18
     if (class_exists('\YahnisElsts\PluginUpdateChecker\v5\PucFactory')) {
         $updateChecker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
             'https://github.com/BirdhouseMN/birdhouse-fancy-smtp-monitor',
@@ -26,8 +27,7 @@ if (file_exists($update_checker_file)) {
     } else {
         error_log('[BFSM] plugin-update-checker.php included, but PucFactory v5 is not available.');
     }
-}
- else {
+} else {
     error_log('[BFSM] plugin-update-checker.php not found. Skipping GitHub updater.');
 }
 
@@ -68,15 +68,17 @@ add_action('rest_api_init', function () {
     ]);
 });
 
-// === /status Endpoint Callback (tests SMTP, real email for manual only) ===
+// === /status Endpoint Callback (tests SMTP; email only for manual) ===
 function bfsmtp_status_check($request) {
     $supplied_token = sanitize_text_field($request->get_param('token'));
     $notify_param   = sanitize_email($request->get_param('notify'));
-    $mode           = sanitize_text_field($request->get_param('mode')); // manual or auto
+    $mode           = strtolower(sanitize_text_field($request->get_param('mode'))); // manual or auto
+    $mode           = in_array($mode, ['manual','auto'], true) ? $mode : 'manual';
     $stored_token   = get_option('bfsmtp_site_token');
 
     // === Rate Limiting by IP ===
-    $ip_key = 'bfsm_rate_' . md5($_SERVER['REMOTE_ADDR']);
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $ip_key = 'bfsm_rate_' . md5($ip);
     $recent = get_transient($ip_key);
     if ($recent) {
         return new WP_REST_Response([
@@ -93,48 +95,62 @@ function bfsmtp_status_check($request) {
         ], 403);
     }
 
-    $subject = '[SMTP Monitor] Test Email';
-    $message = "his is a manual SMTP test triggered from the Birdhouse Manager.\n\nThat means your site successfully responded to a direct ping and sent this email using its current SMTP setup.\n\nIf you're reading this, everything is working as expected! No action is needed unless this email lands in spam or has unexpected formatting.";
-    $headers = ['Content-Type: text/plain; charset=UTF-8'];
-
-    $to = ($mode === 'auto') 
-        ? 'security@birdhousemanager.com' 
-        : (is_email($notify_param) ? $notify_param : get_option('admin_email'));
-
-    // Force the sender address
-    add_filter('wp_mail_from', function () {
-        return 'security@birdhousemanager.com';
-    });
+    // Use a safe From name only. Do not override From address to avoid DMARC conflicts.
     add_filter('wp_mail_from_name', function () {
         return 'Birdhouse SMTP Monitor';
     });
 
+    // Add a Reply-To to your security inbox
+    $headers = [
+        'Content-Type: text/plain; charset=UTF-8',
+        'Reply-To: security@birdhousemanager.com',
+    ];
+
+    $subject = '[SMTP Monitor] Test Email';
+    $message = "This is a manual SMTP test triggered from the Birdhouse Manager.\n\n"
+             . "That means your site successfully responded to a direct ping and sent this email using its current SMTP setup.\n\n"
+             . "If you're reading this, everything is working as expected. No action is needed unless this email lands in spam or has unexpected formatting.";
+
+    $manual = ($mode === 'manual');
+
+    // Recipient rules:
+    // - MANUAL: send to ?notify=; fallback to site admin email if missing.
+    // - AUTO: do not send a real email. Only report status.
+    $to = $manual
+        ? (is_email($notify_param) ? $notify_param : get_option('admin_email'))
+        : '';
+
     if (defined('BFSM_DEBUG') && BFSM_DEBUG) {
         error_log('[BFSM] Mode: ' . $mode);
-        error_log('[BFSM] Attempting to send to: ' . $to);
+        error_log('[BFSM] IP: ' . $ip);
+        error_log('[BFSM] Attempting to send to: ' . ($to ?: '(auto mode, no email)'));
     }
 
-    ob_start();
-    $sent = wp_mail($to, $subject, $message, $headers);
-    $debug_output = ob_get_clean();
+    if ($manual) {
+        ob_start();
+        $sent = wp_mail($to, $subject, $message, $headers);
+        $debug_output = ob_get_clean();
+        $status = $sent ? 'ok' : 'fail';
+        $http   = $sent ? 200 : 500;
 
-    if (defined('BFSM_DEBUG') && BFSM_DEBUG) {
-        error_log('[BFSM] wp_mail() result: ' . var_export($sent, true));
+        return new WP_REST_Response([
+            'status'      => $status,
+            'email_sent'  => (bool) $sent,
+            'debug_check' => $debug_output ?: ($sent ? 'Success' : 'wp_mail() returned false'),
+            'timestamp'   => current_time('mysql'),
+            'email'       => $to,
+        ], $http);
     }
 
-    $status = $sent ? 'ok' : 'fail';
-    $http   = $sent ? 200 : 500;
-
+    // AUTO: no email is sent. Return an OK if we reached here with a valid token.
     return new WP_REST_Response([
-        'status'      => $status,
-        'email_sent'  => $sent,
-        'debug_check' => $debug_output ?: ($sent ? 'Success' : 'wp_mail() returned false'),
+        'status'      => 'ok',
+        'email_sent'  => false,
+        'debug_check' => 'Auto mode check: no email sent',
         'timestamp'   => current_time('mysql'),
-        'email'       => $to,
-    ], $http);
+        'email'       => null,
+    ], 200);
 }
-
-
 
 // === /token Endpoint Callback ===
 function bfsmtp_return_token($request) {
@@ -170,9 +186,7 @@ function bfsmtp_return_token($request) {
     $response->header('Expires', 'Wed, 11 Jan 1984 05:00:00 GMT');
 
     return $response;
-
 }
-
 
 // === Admin Notice for Token Regeneration Confirmation ===
 add_action('admin_notices', function () {
