@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.20
+ * Version: 1.0.21
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,25 +10,45 @@
 if (!defined('ABSPATH')) exit;
 
 // === GitHub Update Checker (Wrapped for Safety) ===
-$update_checker_file = plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php';
+$bfsm_puc_candidates = [
+    plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php',
+    plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/plugin-update-checker.php',
+];
 
-if (file_exists($update_checker_file)) {
-    require_once $update_checker_file;
+$bfsm_puc_bootstrap = null;
+foreach ($bfsm_puc_candidates as $path) {
+    if (file_exists($path)) {
+        $bfsm_puc_bootstrap = $path;
+        break;
+    }
+}
 
-    // Keep the namespaced PUC v5 factory as in your original 1.0.18
+if ($bfsm_puc_bootstrap) {
+    require_once $bfsm_puc_bootstrap;
+
     if (class_exists('\YahnisElsts\PluginUpdateChecker\v5\PucFactory')) {
         $updateChecker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
             'https://github.com/BirdhouseMN/birdhouse-fancy-smtp-monitor',
             __FILE__,
             'birdhouse-fancy-smtp-monitor'
         );
-        $updateChecker->setBranch('main');
-        $updateChecker->getVcsApi()->enableReleaseAssets();
-    } else {
-        error_log('[BFSM] plugin-update-checker.php included, but PucFactory v5 is not available.');
+
+        // Use the main branch and release assets if available.
+        if (method_exists($updateChecker, 'setBranch')) {
+            $updateChecker->setBranch('main');
+        }
+
+        if (method_exists($updateChecker, 'getVcsApi')) {
+            $api = $updateChecker->getVcsApi();
+            if ($api && method_exists($api, 'enableReleaseAssets')) {
+                $api->enableReleaseAssets();
+            }
+        }
+    } elseif (defined('BFSM_DEBUG') && BFSM_DEBUG) {
+        error_log('[BFSM] PUC library loaded, but PucFactory v5 is not available.');
     }
-} else {
-    error_log('[BFSM] plugin-update-checker.php not found. Skipping GitHub updater.');
+} elseif (defined('BFSM_DEBUG') && BFSM_DEBUG) {
+    error_log('[BFSM] plugin-update-checker bootstrap not found. Skipping GitHub updater.');
 }
 
 // === Generate Token on Activation ===
