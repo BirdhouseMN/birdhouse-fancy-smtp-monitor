@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.23
+ * Version: 1.0.24
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -221,7 +221,9 @@ function bfsmtp_return_token($request) {
         $stored_secret = wp_generate_password(40, false);
         update_option('bfsmtp_token_sync_secret', $stored_secret);
     }
-    $supplied_secret = sanitize_text_field($request->get_param('sync_key'));
+    $header_secret   = sanitize_text_field($request->get_header('x-bfsm-sync-key'));
+    $query_secret    = sanitize_text_field($request->get_param('sync_key'));
+    $supplied_secret = $header_secret ?: $query_secret;
 
     if (!current_user_can('manage_options')) {
         if (!$supplied_secret || !hash_equals($stored_secret, $supplied_secret)) {
@@ -288,7 +290,7 @@ function bfsmtp_render_settings_page() {
     $sync_key   = get_option('bfsmtp_token_sync_secret');
     $site_url   = home_url();
     $ping_url   = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/status');
-    $token_url  = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/token?sync_key=' . rawurlencode($sync_key));
+    $token_url  = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/token');
     ?>
     <div class="wrap">
         <h1>SMTP Monitor Settings</h1>
