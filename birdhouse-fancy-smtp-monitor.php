@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.21
+ * Version: 1.0.23
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -57,6 +57,10 @@ register_activation_hook(__FILE__, function () {
         $token = wp_generate_password(32, false);
         update_option('bfsmtp_site_token', $token);
     }
+    if (!get_option('bfsmtp_token_sync_secret')) {
+        $secret = wp_generate_password(40, false);
+        update_option('bfsmtp_token_sync_secret', $secret);
+    }
 });
 
 // === Handle Token Regeneration Before Output ===
@@ -90,7 +94,9 @@ add_action('rest_api_init', function () {
 
 // === /status Endpoint Callback (tests SMTP; email only for manual mode) ===
 function bfsmtp_status_check($request) {
-    $supplied_token = sanitize_text_field($request->get_param('token'));
+    $header_token   = sanitize_text_field($request->get_header('x-bfsm-token'));
+    $query_token    = sanitize_text_field($request->get_param('token'));
+    $supplied_token = $header_token ?: $query_token;
     $notify_param   = sanitize_email($request->get_param('notify'));
     $mode_param     = strtolower(sanitize_text_field($request->get_param('mode'))); // manual or auto
     $mode           = in_array($mode_param, ['manual','auto'], true) ? $mode_param : 'manual';
@@ -108,7 +114,7 @@ function bfsmtp_status_check($request) {
     }
     set_transient($ip_key, true, 30); // 30 second cooldown
 
-    if (!$supplied_token || $supplied_token !== $stored_token) {
+    if (!$supplied_token || !$stored_token || !hash_equals($stored_token, $supplied_token)) {
         return new WP_REST_Response([
             'status'  => 'fail',
             'message' => 'Invalid token'
@@ -116,9 +122,10 @@ function bfsmtp_status_check($request) {
     }
 
     // Use a safe From name only. Do not override From address to avoid DMARC conflicts.
-    add_filter('wp_mail_from_name', function () {
+    $from_name_filter = function () {
         return 'Birdhouse SMTP Monitor';
-    });
+    };
+    add_filter('wp_mail_from_name', $from_name_filter);
 
     // Add a Reply-To to your security inbox
     $headers = [
@@ -127,7 +134,7 @@ function bfsmtp_status_check($request) {
     ];
 
     // Neutral copy works for both manual-button tests and incident verifications
-    $subject = '[SMTP Monitor] SMTP Verification';
+    $subject = '[BFSM] SMTP Verification';
     $message = "This message confirms the site responded to an SMTP verification request from the Birdhouse Manager.\n\n"
              . "The site successfully sent this email using its current SMTP setup.\n\n"
              . "No action is needed unless this message lands in spam or has unexpected formatting.";
@@ -151,6 +158,7 @@ function bfsmtp_status_check($request) {
         ob_start();
         $sent = wp_mail($to, $subject, $message, $headers);
         $debug_output = ob_get_clean();
+        remove_filter('wp_mail_from_name', $from_name_filter);
         $status = $sent ? 'ok' : 'fail';
         $http   = $sent ? 200 : 500;
 
@@ -164,6 +172,7 @@ function bfsmtp_status_check($request) {
     }
 
     // AUTO: no email is sent. Return an OK if we reached here with a valid token.
+    remove_filter('wp_mail_from_name', $from_name_filter);
     return new WP_REST_Response([
         'status'      => 'ok',
         'email_sent'  => false,
@@ -175,18 +184,52 @@ function bfsmtp_status_check($request) {
 
 // === /token Endpoint Callback ===
 function bfsmtp_return_token($request) {
+    // Anonymous force-rotation is never allowed.
     $force = sanitize_text_field($request->get_param('force'));
-
     if ($force === '1') {
+        if (!current_user_can('manage_options')) {
+            return new WP_REST_Response([
+                'status'  => 'fail',
+                'message' => 'Unauthorized token rotation request.',
+            ], 403);
+        }
+
         $new_token = wp_generate_password(32, false);
         update_option('bfsmtp_site_token', $new_token);
 
         return new WP_REST_Response([
-            'message'   => 'Token forcibly regenerated.',
+            'message'   => 'Token regenerated.',
             'token'     => $new_token,
             'timestamp' => current_time('mysql'),
             'site_url'  => home_url(),
         ], 200);
+    }
+
+    // Light rate limit to reduce token scraping.
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $ip_key = 'bfsm_token_rate_' . md5($ip);
+    if (get_transient($ip_key)) {
+        return new WP_REST_Response([
+            'status'  => 'fail',
+            'message' => 'Too many requests. Please wait before trying again.'
+        ], 429);
+    }
+    set_transient($ip_key, true, 30);
+
+    $stored_secret = get_option('bfsmtp_token_sync_secret');
+    if (!$stored_secret) {
+        $stored_secret = wp_generate_password(40, false);
+        update_option('bfsmtp_token_sync_secret', $stored_secret);
+    }
+    $supplied_secret = sanitize_text_field($request->get_param('sync_key'));
+
+    if (!current_user_can('manage_options')) {
+        if (!$supplied_secret || !hash_equals($stored_secret, $supplied_secret)) {
+            return new WP_REST_Response([
+                'status'  => 'fail',
+                'message' => 'Unauthorized token request.',
+            ], 403);
+        }
     }
 
     $token = get_option('bfsmtp_site_token');
@@ -205,6 +248,7 @@ function bfsmtp_return_token($request) {
 
     $response->header('Cache-Control', 'no-cache, must-revalidate, max-age=0');
     $response->header('Expires', 'Wed, 11 Jan 1984 05:00:00 GMT');
+    $response->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
 
     return $response;
 }
@@ -240,10 +284,11 @@ add_action('admin_menu', function () {
 function bfsmtp_render_settings_page() {
     if (!current_user_can('manage_options')) return;
 
-    $token     = get_option('bfsmtp_site_token');
-    $site_url  = home_url();
-    $ping_url  = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/status?token=' . $token);
-    $token_url = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/token');
+    $token      = get_option('bfsmtp_site_token');
+    $sync_key   = get_option('bfsmtp_token_sync_secret');
+    $site_url   = home_url();
+    $ping_url   = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/status');
+    $token_url  = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/token?sync_key=' . rawurlencode($sync_key));
     ?>
     <div class="wrap">
         <h1>SMTP Monitor Settings</h1>
@@ -251,6 +296,10 @@ function bfsmtp_render_settings_page() {
             <tr>
                 <th scope="row">Monitor Token</th>
                 <td><code><?php echo esc_html($token); ?></code></td>
+            </tr>
+            <tr>
+                <th scope="row">Token Sync Key</th>
+                <td><code><?php echo esc_html($sync_key); ?></code></td>
             </tr>
             <tr>
                 <th scope="row">Ping URL</th>

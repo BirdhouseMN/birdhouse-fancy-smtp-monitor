@@ -6,3 +6,4 @@ if (!defined('WP_UNINSTALL_PLUGIN')) {
 
 // Clean up plugin data
 delete_option('bfsmtp_site_token');
+delete_option('bfsmtp_token_sync_secret');
