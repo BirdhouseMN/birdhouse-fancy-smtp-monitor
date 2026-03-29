@@ -4,7 +4,7 @@ Tags: smtp, email monitor, wordpress email, api
 Requires at least: 5.4
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.0.23
+Stable tag: 1.0.26
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -29,6 +29,15 @@ Core behavior:
 4. Copy the **Token Sync Key** and use it in the manager dashboard monitor record.
 
 == Changelog ==
+
+= 1.0.26 =
+* Added updater bootstrap safety checks so incomplete release bundles do not break activation
+* Added support for token sync via the `X-BFSM-Sync-Key` header with legacy query fallback
+
+= 1.0.24 =
+* Added header-based Token Sync Key support (`X-BFSM-Sync-Key`)
+* Kept legacy query-key fallback for compatibility
+* Reduced exposure by removing sync key from displayed token URL
 
 = 1.0.23 =
 * Aligned manual notification behavior with dashboard visibility goals

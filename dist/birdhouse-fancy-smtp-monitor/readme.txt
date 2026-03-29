@@ -4,7 +4,7 @@ Tags: smtp, email monitor, wordpress email, api
 Requires at least: 5.4
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.0.25
+Stable tag: 1.0.26
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -30,9 +30,9 @@ Core behavior:
 
 == Changelog ==
 
-= 1.0.25 =
-* Re-release from current main commit to align tag, code, and packaged asset
-* No functional changes beyond release alignment and version bump
+= 1.0.26 =
+* Added updater bootstrap safety checks so incomplete release bundles do not break activation
+* Added support for token sync via the `X-BFSM-Sync-Key` header with legacy query fallback
 
 = 1.0.24 =
 * Added header-based Token Sync Key support (`X-BFSM-Sync-Key`)

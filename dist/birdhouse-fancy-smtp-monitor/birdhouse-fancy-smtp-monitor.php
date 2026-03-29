@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.25
+ * Version: 1.0.26
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -11,16 +11,43 @@ if (!defined('ABSPATH')) exit;
 
 // === GitHub Update Checker (Wrapped for Safety) ===
 $bfsm_puc_candidates = [
-    plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php',
-    plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/plugin-update-checker.php',
+    [
+        'bootstrap' => plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php',
+        'required'  => [],
+    ],
+    [
+        'bootstrap' => plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/plugin-update-checker.php',
+        'required'  => [
+            plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/Puc/v5p6/Autoloader.php',
+            plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/Puc/v5p6/PucFactory.php',
+            plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/Puc/v5/PucFactory.php',
+        ],
+    ],
 ];
 
 $bfsm_puc_bootstrap = null;
-foreach ($bfsm_puc_candidates as $path) {
-    if (file_exists($path)) {
-        $bfsm_puc_bootstrap = $path;
-        break;
+foreach ($bfsm_puc_candidates as $candidate) {
+    if (!file_exists($candidate['bootstrap'])) {
+        continue;
     }
+
+    $missing_dependency = false;
+    foreach ($candidate['required'] as $required_path) {
+        if (!file_exists($required_path)) {
+            $missing_dependency = true;
+            break;
+        }
+    }
+
+    if ($missing_dependency) {
+        if (defined('BFSM_DEBUG') && BFSM_DEBUG) {
+            error_log('[BFSM] Skipping incomplete plugin-update-checker bundle: ' . $candidate['bootstrap']);
+        }
+        continue;
+    }
+
+    $bfsm_puc_bootstrap = $candidate['bootstrap'];
+    break;
 }
 
 if ($bfsm_puc_bootstrap) {
