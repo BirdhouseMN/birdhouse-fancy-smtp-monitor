@@ -70,7 +70,7 @@ class Parsedown
     {
         $this->urlsLinked = $urlsLinked;
 
-        return $this;
+        return $this;
     }
 
     protected $urlsLinked = true;

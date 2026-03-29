@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.23
+ * Version: 1.0.25
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -11,43 +11,16 @@ if (!defined('ABSPATH')) exit;
 
 // === GitHub Update Checker (Wrapped for Safety) ===
 $bfsm_puc_candidates = [
-    [
-        'bootstrap' => plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php',
-        'required'  => [],
-    ],
-    [
-        'bootstrap' => plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/plugin-update-checker.php',
-        'required'  => [
-            plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/Puc/v5p6/Autoloader.php',
-            plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/Puc/v5p6/PucFactory.php',
-            plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/Puc/v5/PucFactory.php',
-        ],
-    ],
+    plugin_dir_path(__FILE__) . 'plugin-update-checker/plugin-update-checker.php',
+    plugin_dir_path(__FILE__) . 'plugin-update-checker-5.6/plugin-update-checker.php',
 ];
 
 $bfsm_puc_bootstrap = null;
-foreach ($bfsm_puc_candidates as $candidate) {
-    if (!file_exists($candidate['bootstrap'])) {
-        continue;
+foreach ($bfsm_puc_candidates as $path) {
+    if (file_exists($path)) {
+        $bfsm_puc_bootstrap = $path;
+        break;
     }
-
-    $missing_dependency = false;
-    foreach ($candidate['required'] as $required_path) {
-        if (!file_exists($required_path)) {
-            $missing_dependency = true;
-            break;
-        }
-    }
-
-    if ($missing_dependency) {
-        if (defined('BFSM_DEBUG') && BFSM_DEBUG) {
-            error_log('[BFSM] Skipping incomplete plugin-update-checker bundle: ' . $candidate['bootstrap']);
-        }
-        continue;
-    }
-
-    $bfsm_puc_bootstrap = $candidate['bootstrap'];
-    break;
 }
 
 if ($bfsm_puc_bootstrap) {
@@ -317,7 +290,7 @@ function bfsmtp_render_settings_page() {
     $sync_key   = get_option('bfsmtp_token_sync_secret');
     $site_url   = home_url();
     $ping_url   = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/status');
-    $token_url  = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/token?sync_key=' . rawurlencode($sync_key));
+    $token_url  = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/token');
     ?>
     <div class="wrap">
         <h1>SMTP Monitor Settings</h1>
