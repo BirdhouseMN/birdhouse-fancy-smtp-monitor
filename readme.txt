@@ -4,7 +4,7 @@ Tags: smtp, email monitor, wordpress email, api
 Requires at least: 5.4
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.0.26
+Stable tag: 1.0.27
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -30,11 +30,14 @@ Core behavior:
 
 == Changelog ==
 
+= 1.0.27 =
+* Added monitor plugin version metadata to status and token API responses
+* Avoided rate limiting valid lightweight auto checks while preserving rate limits for manual email sends and invalid token attempts
+* Hardened REST/admin handling with safer redirects, sanitized request data, and consistent no-cache API responses
+
 = 1.0.26 =
 * Added updater bootstrap safety checks so incomplete release bundles do not break activation
 * Added support for token sync via the `X-BFSM-Sync-Key` header with legacy query fallback
-* Added monitor plugin version metadata to status and token API responses
-* Avoided rate limiting valid lightweight auto checks while preserving rate limits for manual email sends and invalid token attempts
 
 = 1.0.24 =
 * Added header-based Token Sync Key support (`X-BFSM-Sync-Key`)
