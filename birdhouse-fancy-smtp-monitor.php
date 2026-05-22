@@ -9,6 +9,27 @@
 
 if (!defined('ABSPATH')) exit;
 
+if (!defined('BFSMTP_MONITOR_VERSION')) {
+    define('BFSMTP_MONITOR_VERSION', '1.0.26');
+}
+
+function bfsmtp_monitor_response_meta() {
+    return [
+        'child_version'   => BFSMTP_MONITOR_VERSION,
+        'plugin_version'  => BFSMTP_MONITOR_VERSION,
+        'monitor_version' => BFSMTP_MONITOR_VERSION,
+        'plugin_slug'     => 'birdhouse-fancy-smtp-monitor',
+    ];
+}
+
+function bfsmtp_monitor_rest_response($data, $status = 200) {
+    $response = new WP_REST_Response(array_merge($data, bfsmtp_monitor_response_meta()), $status);
+    $response->header('Cache-Control', 'no-cache, must-revalidate, max-age=0');
+    $response->header('Expires', 'Wed, 11 Jan 1984 05:00:00 GMT');
+    $response->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    return $response;
+}
+
 // === GitHub Update Checker (Wrapped for Safety) ===
 $bfsm_puc_candidates = [
     [
@@ -99,7 +120,7 @@ add_action('admin_init', function () {
     ) {
         $new_token = wp_generate_password(32, false);
         update_option('bfsmtp_site_token', $new_token);
-        wp_redirect(admin_url('options-general.php?page=bfsmtp-monitor-settings&bfsm_regenerated=1'));
+        wp_safe_redirect(admin_url('options-general.php?page=bfsmtp-monitor-settings&bfsm_regenerated=1'));
         exit;
     }
 });
@@ -129,23 +150,34 @@ function bfsmtp_status_check($request) {
     $mode           = in_array($mode_param, ['manual','auto'], true) ? $mode_param : 'manual';
     $stored_token   = get_option('bfsmtp_site_token');
 
-    // === Rate Limiting by IP ===
-    $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'unknown';
+
+    if (!$supplied_token || !$stored_token || !hash_equals($stored_token, $supplied_token)) {
+        $ip_key = 'bfsm_invalid_rate_' . md5($ip);
+        if (get_transient($ip_key)) {
+            return bfsmtp_monitor_rest_response([
+                'status'  => 'fail',
+                'message' => 'Too many requests. Please wait before trying again.'
+            ], 429);
+        }
+        set_transient($ip_key, true, 30);
+
+        return bfsmtp_monitor_rest_response([
+            'status'  => 'fail',
+            'message' => 'Invalid token'
+        ], 403);
+    }
+
+    // Rate-limit manual checks because they send real email. Lightweight auto checks stay cheap.
     $ip_key = 'bfsm_rate_' . md5($ip);
-    $recent = get_transient($ip_key);
-    if ($recent) {
-        return new WP_REST_Response([
+    if ($mode === 'manual' && get_transient($ip_key)) {
+        return bfsmtp_monitor_rest_response([
             'status'  => 'fail',
             'message' => 'Too many requests. Please wait before trying again.'
         ], 429);
     }
-    set_transient($ip_key, true, 30); // 30 second cooldown
-
-    if (!$supplied_token || !$stored_token || !hash_equals($stored_token, $supplied_token)) {
-        return new WP_REST_Response([
-            'status'  => 'fail',
-            'message' => 'Invalid token'
-        ], 403);
+    if ($mode === 'manual') {
+        set_transient($ip_key, true, 30);
     }
 
     // Use a safe From name only. Do not override From address to avoid DMARC conflicts.
@@ -189,7 +221,7 @@ function bfsmtp_status_check($request) {
         $status = $sent ? 'ok' : 'fail';
         $http   = $sent ? 200 : 500;
 
-        return new WP_REST_Response([
+        return bfsmtp_monitor_rest_response([
             'status'      => $status,
             'email_sent'  => (bool) $sent,
             'debug_check' => $debug_output ?: ($sent ? 'Success' : 'wp_mail() returned false'),
@@ -200,7 +232,7 @@ function bfsmtp_status_check($request) {
 
     // AUTO: no email is sent. Return an OK if we reached here with a valid token.
     remove_filter('wp_mail_from_name', $from_name_filter);
-    return new WP_REST_Response([
+    return bfsmtp_monitor_rest_response([
         'status'      => 'ok',
         'email_sent'  => false,
         'debug_check' => 'Auto mode check: no email sent',
@@ -215,7 +247,7 @@ function bfsmtp_return_token($request) {
     $force = sanitize_text_field($request->get_param('force'));
     if ($force === '1') {
         if (!current_user_can('manage_options')) {
-            return new WP_REST_Response([
+            return bfsmtp_monitor_rest_response([
                 'status'  => 'fail',
                 'message' => 'Unauthorized token rotation request.',
             ], 403);
@@ -224,7 +256,7 @@ function bfsmtp_return_token($request) {
         $new_token = wp_generate_password(32, false);
         update_option('bfsmtp_site_token', $new_token);
 
-        return new WP_REST_Response([
+        return bfsmtp_monitor_rest_response([
             'message'   => 'Token regenerated.',
             'token'     => $new_token,
             'timestamp' => current_time('mysql'),
@@ -233,10 +265,10 @@ function bfsmtp_return_token($request) {
     }
 
     // Light rate limit to reduce token scraping.
-    $ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : 'unknown';
+    $ip = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : 'unknown';
     $ip_key = 'bfsm_token_rate_' . md5($ip);
     if (get_transient($ip_key)) {
-        return new WP_REST_Response([
+        return bfsmtp_monitor_rest_response([
             'status'  => 'fail',
             'message' => 'Too many requests. Please wait before trying again.'
         ], 429);
@@ -254,7 +286,7 @@ function bfsmtp_return_token($request) {
 
     if (!current_user_can('manage_options')) {
         if (!$supplied_secret || !hash_equals($stored_secret, $supplied_secret)) {
-            return new WP_REST_Response([
+            return bfsmtp_monitor_rest_response([
                 'status'  => 'fail',
                 'message' => 'Unauthorized token request.',
             ], 403);
@@ -269,17 +301,11 @@ function bfsmtp_return_token($request) {
         update_option('bfsmtp_site_token', $token);
     }
 
-    $response = new WP_REST_Response([
+    return bfsmtp_monitor_rest_response([
         'token'     => $token,
         'timestamp' => current_time('mysql'),
         'site_url'  => home_url(),
-    ]);
-
-    $response->header('Cache-Control', 'no-cache, must-revalidate, max-age=0');
-    $response->header('Expires', 'Wed, 11 Jan 1984 05:00:00 GMT');
-    $response->header('X-Robots-Tag', 'noindex, nofollow, noarchive');
-
-    return $response;
+    ], 200);
 }
 
 // === Admin Notice for Token Regeneration Confirmation ===
@@ -292,7 +318,8 @@ add_action('admin_notices', function () {
 
     $screen = get_current_screen();
     if ($screen && $screen->id === 'settings_page_bfsmtp-monitor-settings') {
-        if (!empty($_GET['bfsm_regenerated']) && $_GET['bfsm_regenerated'] === '1') {
+        $regenerated = isset($_GET['bfsm_regenerated']) ? sanitize_text_field(wp_unslash($_GET['bfsm_regenerated'])) : '';
+        if ($regenerated === '1') {
             echo '<div class="notice notice-success is-dismissible"><p>Token successfully regenerated.</p></div>';
         }
     }
@@ -317,7 +344,7 @@ function bfsmtp_render_settings_page() {
     $sync_key   = get_option('bfsmtp_token_sync_secret');
     $site_url   = home_url();
     $ping_url   = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/status');
-    $token_url  = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/token?sync_key=' . rawurlencode($sync_key));
+    $token_url  = esc_url_raw(trailingslashit($site_url) . 'wp-json/smtp-monitor/v1/token');
     ?>
     <div class="wrap">
         <h1>SMTP Monitor Settings</h1>

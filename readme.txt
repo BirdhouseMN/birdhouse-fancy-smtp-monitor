@@ -33,6 +33,8 @@ Core behavior:
 = 1.0.26 =
 * Added updater bootstrap safety checks so incomplete release bundles do not break activation
 * Added support for token sync via the `X-BFSM-Sync-Key` header with legacy query fallback
+* Added monitor plugin version metadata to status and token API responses
+* Avoided rate limiting valid lightweight auto checks while preserving rate limits for manual email sends and invalid token attempts
 
 = 1.0.24 =
 * Added header-based Token Sync Key support (`X-BFSM-Sync-Key`)
