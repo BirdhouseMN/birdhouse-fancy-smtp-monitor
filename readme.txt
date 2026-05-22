@@ -4,7 +4,7 @@ Tags: smtp, email monitor, wordpress email, api
 Requires at least: 5.4
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.0.27
+Stable tag: 1.0.28
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -29,6 +29,9 @@ Core behavior:
 4. Copy the **Token Sync Key** and use it in the manager dashboard monitor record.
 
 == Changelog ==
+
+= 1.0.28 =
+* Test release to verify GitHub release asset distribution and update detection
 
 = 1.0.27 =
 * Added monitor plugin version metadata to status and token API responses
