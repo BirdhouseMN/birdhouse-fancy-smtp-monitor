@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.28
+ * Version: 1.0.29
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.28');
+    define('BFSMTP_MONITOR_VERSION', '1.0.29');
 }
 
 function bfsmtp_monitor_response_meta() {
