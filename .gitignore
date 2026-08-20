@@ -1,3 +1,8 @@
 _notes/
 **/_notes/
+6484a6b1/
+**/6484a6b1/
+*.zip
 dist/*.zip
+.DS_Store
+Thumbs.db
