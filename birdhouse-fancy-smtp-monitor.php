@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.29
+ * Version: 1.0.30
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.29');
+    define('BFSMTP_MONITOR_VERSION', '1.0.30');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -214,19 +214,72 @@ function bfsmtp_status_check($request) {
     }
 
     if ($manual) {
+        $mail_debug = [
+            'mailer' => '',
+            'host'   => '',
+            'error'  => '',
+        ];
+
+        $phpmailer_capture = function ($phpmailer) use (&$mail_debug) {
+            if (is_object($phpmailer)) {
+                $mail_debug['mailer'] = isset($phpmailer->Mailer) ? sanitize_text_field((string) $phpmailer->Mailer) : '';
+                $mail_debug['host']   = isset($phpmailer->Host) ? sanitize_text_field((string) $phpmailer->Host) : '';
+            }
+        };
+
+        $mail_failed_capture = function ($wp_error) use (&$mail_debug) {
+            if (is_wp_error($wp_error)) {
+                $mail_debug['error'] = sanitize_text_field($wp_error->get_error_message());
+            }
+        };
+
+        add_action('phpmailer_init', $phpmailer_capture);
+        add_action('wp_mail_failed', $mail_failed_capture);
+
         ob_start();
         $sent = wp_mail($to, $subject, $message, $headers);
         $debug_output = ob_get_clean();
+
+        remove_action('phpmailer_init', $phpmailer_capture);
+        remove_action('wp_mail_failed', $mail_failed_capture);
         remove_filter('wp_mail_from_name', $from_name_filter);
-        $status = $sent ? 'ok' : 'fail';
-        $http   = $sent ? 200 : 500;
+
+        if (empty($mail_debug['mailer']) && isset($GLOBALS['phpmailer']) && is_object($GLOBALS['phpmailer'])) {
+            $mail_debug['mailer'] = isset($GLOBALS['phpmailer']->Mailer) ? sanitize_text_field((string) $GLOBALS['phpmailer']->Mailer) : '';
+            $mail_debug['host']   = isset($GLOBALS['phpmailer']->Host) ? sanitize_text_field((string) $GLOBALS['phpmailer']->Host) : '';
+        }
+
+        $mailer = strtolower((string) $mail_debug['mailer']);
+        $smtp_confirmed = ($mailer === 'smtp');
+
+        if (!$sent) {
+            $status = 'fail';
+            $http   = 500;
+            $message_text = 'wp_mail() returned false';
+        } elseif (!$smtp_confirmed && $mailer !== '') {
+            $status = 'fail';
+            $http   = 500;
+            $message_text = 'Email was accepted by WordPress, but SMTP transport was not used.';
+        } elseif (!$smtp_confirmed) {
+            $status = 'warning';
+            $http   = 200;
+            $message_text = 'Email was accepted by WordPress, but SMTP transport could not be confirmed.';
+        } else {
+            $status = 'ok';
+            $http   = 200;
+            $message_text = 'SMTP transport confirmed.';
+        }
 
         return bfsmtp_monitor_rest_response([
-            'status'      => $status,
-            'email_sent'  => (bool) $sent,
-            'debug_check' => $debug_output ?: ($sent ? 'Success' : 'wp_mail() returned false'),
-            'timestamp'   => current_time('mysql'),
-            'email'       => $to,
+            'status'          => $status,
+            'email_sent'      => (bool) $sent,
+            'smtp_confirmed'  => $smtp_confirmed,
+            'delivery_method' => $mail_debug['mailer'],
+            'smtp_host'       => $mail_debug['host'],
+            'debug_check'     => $debug_output ?: ($mail_debug['error'] ?: $message_text),
+            'message'         => $message_text,
+            'timestamp'       => current_time('mysql'),
+            'email'           => $to,
         ], $http);
     }
 
