@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.31
+ * Version: 1.0.32
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.31');
+    define('BFSMTP_MONITOR_VERSION', '1.0.32');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -238,12 +238,51 @@ function bfsmtp_status_check($request) {
         }
 
         $mailer = strtolower((string) $mail_debug['mailer']);
+        $wp_mail_smtp_mailer = '';
+        $wp_mail_smtp_active = function_exists('wp_mail_smtp') || class_exists('WPMailSMTP\\WP');
+
+        if ($wp_mail_smtp_active) {
+            $wp_mail_smtp_options = get_option('wp_mail_smtp', []);
+            if (is_array($wp_mail_smtp_options) && isset($wp_mail_smtp_options['mail']['mailer'])) {
+                $wp_mail_smtp_mailer = strtolower(sanitize_key((string) $wp_mail_smtp_options['mail']['mailer']));
+            }
+        }
+
+        $managed_mailers = [
+            'smtp',
+            'gmail',
+            'outlook',
+            'mailgun',
+            'sendgrid',
+            'sendinblue',
+            'smtpcom',
+            'sendlayer',
+            'amazonses',
+            'elasticemail',
+            'mailjet',
+            'mailersend',
+            'mandrill',
+            'postmark',
+            'resend',
+            'smtp2go',
+            'sparkpost',
+            'zoho',
+        ];
         $smtp_confirmed = ($mailer === 'smtp');
+        $managed_transport_confirmed = $smtp_confirmed || (
+            $wp_mail_smtp_active &&
+            in_array($wp_mail_smtp_mailer, $managed_mailers, true) &&
+            $wp_mail_smtp_mailer !== 'mail'
+        );
 
         if (!$sent) {
             $status = 'fail';
             $http   = 500;
             $message_text = 'wp_mail() returned false';
+        } elseif ($managed_transport_confirmed) {
+            $status = 'ok';
+            $http   = 200;
+            $message_text = $smtp_confirmed ? 'SMTP transport confirmed.' : 'WP Mail SMTP managed mailer confirmed.';
         } elseif (!$smtp_confirmed && $mailer !== '') {
             $status = 'fail';
             $http   = 500;
@@ -252,17 +291,13 @@ function bfsmtp_status_check($request) {
             $status = 'warning';
             $http   = 200;
             $message_text = 'Email was accepted by WordPress, but SMTP transport could not be confirmed.';
-        } else {
-            $status = 'ok';
-            $http   = 200;
-            $message_text = 'SMTP transport confirmed.';
         }
 
         return bfsmtp_monitor_rest_response([
             'status'          => $status,
             'email_sent'      => (bool) $sent,
-            'smtp_confirmed'  => $smtp_confirmed,
-            'delivery_method' => $mail_debug['mailer'],
+            'smtp_confirmed'  => $managed_transport_confirmed,
+            'delivery_method' => $wp_mail_smtp_mailer ?: $mail_debug['mailer'],
             'smtp_host'       => $mail_debug['host'],
             'debug_check'     => $debug_output ?: ($mail_debug['error'] ?: $message_text),
             'message'         => $message_text,
