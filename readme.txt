@@ -4,7 +4,7 @@ Tags: smtp, email monitor, wordpress email, api
 Requires at least: 5.4
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.0.30
+Stable tag: 1.0.31
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -29,6 +29,9 @@ Core behavior:
 4. Copy the **Token Sync Key** and use it in the manager dashboard monitor record.
 
 == Changelog ==
+
+= 1.0.31 =
+* Switched update checks from GitHub API discovery to a public metadata file to avoid API 403/rate-limit failures on child sites
 
 = 1.0.30 =
 * Manual verification now reports failure when WordPress accepts mail without confirming SMTP transport

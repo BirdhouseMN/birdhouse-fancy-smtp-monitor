@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.30
+ * Version: 1.0.31
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.30');
+    define('BFSMTP_MONITOR_VERSION', '1.0.31');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -76,22 +76,10 @@ if ($bfsm_puc_bootstrap) {
 
     if (class_exists('\YahnisElsts\PluginUpdateChecker\v5\PucFactory')) {
         $updateChecker = \YahnisElsts\PluginUpdateChecker\v5\PucFactory::buildUpdateChecker(
-            'https://github.com/BirdhouseMN/birdhouse-fancy-smtp-monitor',
+            'https://raw.githubusercontent.com/BirdhouseMN/birdhouse-fancy-smtp-monitor/main/update.json',
             __FILE__,
             'birdhouse-fancy-smtp-monitor'
         );
-
-        // Use the main branch and release assets if available.
-        if (method_exists($updateChecker, 'setBranch')) {
-            $updateChecker->setBranch('main');
-        }
-
-        if (method_exists($updateChecker, 'getVcsApi')) {
-            $api = $updateChecker->getVcsApi();
-            if ($api && method_exists($api, 'enableReleaseAssets')) {
-                $api->enableReleaseAssets();
-            }
-        }
     } elseif (defined('BFSM_DEBUG') && BFSM_DEBUG) {
         error_log('[BFSM] PUC library loaded, but PucFactory v5 is not available.');
     }
