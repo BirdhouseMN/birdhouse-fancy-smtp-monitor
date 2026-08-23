@@ -4,7 +4,7 @@ Tags: smtp, email monitor, wordpress email, api
 Requires at least: 5.4
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.0.35
+Stable tag: 1.0.36
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -29,6 +29,9 @@ Core behavior:
 4. Copy the **Token Sync Key** and use it in the manager dashboard monitor record.
 
 == Changelog ==
+
+= 1.0.36 =
+* Treat any successful WordPress `wp_mail()` send as a passing email delivery check, while still reporting SMTP transport details for diagnostics.
 
 = 1.0.35 =
 * Remove valid-token manual check throttling that could cause false failed results while keeping invalid-token rate protection.

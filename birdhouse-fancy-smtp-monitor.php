@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.35
+ * Version: 1.0.36
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.35');
+    define('BFSMTP_MONITOR_VERSION', '1.0.36');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -316,14 +316,10 @@ function bfsmtp_status_check($request) {
             $status = 'ok';
             $http   = 200;
             $message_text = $smtp_confirmed ? 'SMTP transport confirmed.' : 'Managed mailer transport confirmed.';
-        } elseif (!$smtp_confirmed && $mailer !== '') {
-            $status = 'fail';
-            $http   = 500;
-            $message_text = 'Email was accepted by WordPress, but SMTP transport was not used.';
         } elseif (!$smtp_confirmed) {
-            $status = 'warning';
+            $status = 'ok';
             $http   = 200;
-            $message_text = 'Email was accepted by WordPress, but SMTP transport could not be confirmed.';
+            $message_text = 'Email was accepted by WordPress. SMTP transport was not confirmed.';
         }
 
         return bfsmtp_monitor_rest_response([
