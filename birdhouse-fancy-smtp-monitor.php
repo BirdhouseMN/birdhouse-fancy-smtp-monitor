@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.33
+ * Version: 1.0.35
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.33');
+    define('BFSMTP_MONITOR_VERSION', '1.0.35');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -154,18 +154,6 @@ function bfsmtp_status_check($request) {
             'status'  => 'fail',
             'message' => 'Invalid token'
         ], 403);
-    }
-
-    // Rate-limit manual checks because they send real email. Lightweight auto checks stay cheap.
-    $ip_key = 'bfsm_rate_' . md5($ip);
-    if ($mode === 'manual' && get_transient($ip_key)) {
-        return bfsmtp_monitor_rest_response([
-            'status'  => 'fail',
-            'message' => 'Too many requests. Please wait before trying again.'
-        ], 429);
-    }
-    if ($mode === 'manual') {
-        set_transient($ip_key, true, 30);
     }
 
     // Use a safe From name only. Do not override From address to avoid DMARC conflicts.
@@ -313,7 +301,6 @@ function bfsmtp_status_check($request) {
         ) || (
             $fluent_smtp_active &&
             !$fluent_smtp_simulation &&
-            in_array($fluent_smtp_mailer, $managed_mailers, true) &&
             $fluent_smtp_mailer !== 'mail'
         );
 
