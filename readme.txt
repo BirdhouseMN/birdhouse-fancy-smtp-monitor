@@ -4,7 +4,7 @@ Tags: smtp, email monitor, wordpress email, api
 Requires at least: 5.4
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.0.32
+Stable tag: 1.0.33
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -29,6 +29,10 @@ Core behavior:
 4. Copy the **Token Sync Key** and use it in the manager dashboard monitor record.
 
 == Changelog ==
+
+= 1.0.33 =
+* Treat successful FluentSMTP sends as confirmed managed mail transport when a real provider is configured
+* Continue failing FluentSMTP simulation mode because it does not confirm external delivery
 
 = 1.0.32 =
 * Treat successful WP Mail SMTP API mailers, including Google/Gmail, as confirmed managed mail transport

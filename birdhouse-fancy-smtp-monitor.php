@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.32
+ * Version: 1.0.33
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.32');
+    define('BFSMTP_MONITOR_VERSION', '1.0.33');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -240,11 +240,43 @@ function bfsmtp_status_check($request) {
         $mailer = strtolower((string) $mail_debug['mailer']);
         $wp_mail_smtp_mailer = '';
         $wp_mail_smtp_active = function_exists('wp_mail_smtp') || class_exists('WPMailSMTP\\WP');
+        $fluent_smtp_mailer = '';
+        $fluent_smtp_simulation = false;
+        $fluent_smtp_active = function_exists('fluentMail') || function_exists('fluentMailGetSettings') || defined('FLUENTMAIL_PLUGIN_PATH') || class_exists('FluentMail\\App\\App');
 
         if ($wp_mail_smtp_active) {
             $wp_mail_smtp_options = get_option('wp_mail_smtp', []);
             if (is_array($wp_mail_smtp_options) && isset($wp_mail_smtp_options['mail']['mailer'])) {
                 $wp_mail_smtp_mailer = strtolower(sanitize_key((string) $wp_mail_smtp_options['mail']['mailer']));
+            }
+        }
+
+        if ($fluent_smtp_active) {
+            if (function_exists('fluentMailGetSettings')) {
+                $fluent_settings = fluentMailGetSettings([], false);
+            } else {
+                $fluent_settings = get_option('fluentmail-settings', []);
+            }
+
+            if (is_array($fluent_settings)) {
+                $fluent_smtp_simulation = (
+                    isset($fluent_settings['misc']['simulate_emails']) &&
+                    $fluent_settings['misc']['simulate_emails'] === 'yes'
+                ) || (defined('FLUENTMAIL_SIMULATE_EMAILS') && FLUENTMAIL_SIMULATE_EMAILS);
+
+                $fluent_connection = [];
+                if (
+                    isset($fluent_settings['misc']['default_connection'], $fluent_settings['connections'][$fluent_settings['misc']['default_connection']]) &&
+                    is_array($fluent_settings['connections'][$fluent_settings['misc']['default_connection']])
+                ) {
+                    $fluent_connection = $fluent_settings['connections'][$fluent_settings['misc']['default_connection']];
+                } elseif (!empty($fluent_settings['connections']) && is_array($fluent_settings['connections'])) {
+                    $fluent_connection = reset($fluent_settings['connections']);
+                }
+
+                if (is_array($fluent_connection) && isset($fluent_connection['provider_settings']['provider'])) {
+                    $fluent_smtp_mailer = strtolower(sanitize_key((string) $fluent_connection['provider_settings']['provider']));
+                }
             }
         }
 
@@ -267,22 +299,36 @@ function bfsmtp_status_check($request) {
             'smtp2go',
             'sparkpost',
             'zoho',
+            'ses',
+            'pepipost',
+            'elasticmail',
+            'tosend',
+            'cloudflare',
         ];
         $smtp_confirmed = ($mailer === 'smtp');
         $managed_transport_confirmed = $smtp_confirmed || (
             $wp_mail_smtp_active &&
             in_array($wp_mail_smtp_mailer, $managed_mailers, true) &&
             $wp_mail_smtp_mailer !== 'mail'
+        ) || (
+            $fluent_smtp_active &&
+            !$fluent_smtp_simulation &&
+            in_array($fluent_smtp_mailer, $managed_mailers, true) &&
+            $fluent_smtp_mailer !== 'mail'
         );
 
         if (!$sent) {
             $status = 'fail';
             $http   = 500;
             $message_text = 'wp_mail() returned false';
+        } elseif ($fluent_smtp_simulation) {
+            $status = 'fail';
+            $http   = 500;
+            $message_text = 'FluentSMTP simulation mode is enabled, so external delivery was not confirmed.';
         } elseif ($managed_transport_confirmed) {
             $status = 'ok';
             $http   = 200;
-            $message_text = $smtp_confirmed ? 'SMTP transport confirmed.' : 'WP Mail SMTP managed mailer confirmed.';
+            $message_text = $smtp_confirmed ? 'SMTP transport confirmed.' : 'Managed mailer transport confirmed.';
         } elseif (!$smtp_confirmed && $mailer !== '') {
             $status = 'fail';
             $http   = 500;
@@ -297,7 +343,7 @@ function bfsmtp_status_check($request) {
             'status'          => $status,
             'email_sent'      => (bool) $sent,
             'smtp_confirmed'  => $managed_transport_confirmed,
-            'delivery_method' => $wp_mail_smtp_mailer ?: $mail_debug['mailer'],
+            'delivery_method' => $wp_mail_smtp_mailer ? 'wp-mail-smtp:' . $wp_mail_smtp_mailer : ($fluent_smtp_mailer ? 'fluent-smtp:' . $fluent_smtp_mailer : $mail_debug['mailer']),
             'smtp_host'       => $mail_debug['host'],
             'debug_check'     => $debug_output ?: ($mail_debug['error'] ?: $message_text),
             'message'         => $message_text,
