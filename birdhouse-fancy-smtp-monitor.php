@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.36
+ * Version: 1.0.37
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.36');
+    define('BFSMTP_MONITOR_VERSION', '1.0.37');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -128,7 +128,7 @@ add_action('rest_api_init', function () {
     ]);
 });
 
-// === /status Endpoint Callback (tests SMTP; email only for manual mode) ===
+// === /status Endpoint Callback (tests email delivery for manual and auto modes) ===
 function bfsmtp_status_check($request) {
     $header_token   = sanitize_text_field($request->get_header('x-bfsm-token'));
     $query_token    = sanitize_text_field($request->get_param('token'));
@@ -170,26 +170,32 @@ function bfsmtp_status_check($request) {
 
     // Neutral copy works for both manual-button tests and incident verifications
     $subject = '[BFSM] SMTP Verification';
-    $message = "This message confirms the site responded to an SMTP verification request from the Birdhouse Manager.\n\n"
-             . "The site successfully sent this email using its current SMTP setup.\n\n"
+    $message = "This message confirms the site responded to an email delivery verification request from the Birdhouse Manager.\n\n"
+             . "The site successfully sent this email using its current WordPress mail setup.\n\n"
              . "No action is needed unless this message lands in spam or has unexpected formatting.";
 
-    $manual = ($mode === 'manual');
+    // Both manual and auto checks must attempt a real send so "OK" means email delivery worked.
+    $to = is_email($notify_param) ? $notify_param : get_option('admin_email');
 
-    // Recipient rules:
-    // - MANUAL: send to ?notify=; fallback to site admin email if missing.
-    // - AUTO: do not send a real email. Only report status.
-    $to = $manual
-        ? (is_email($notify_param) ? $notify_param : get_option('admin_email'))
-        : '';
+    if (!is_email($to)) {
+        remove_filter('wp_mail_from_name', $from_name_filter);
+        return bfsmtp_monitor_rest_response([
+            'status'      => 'fail',
+            'email_sent'  => false,
+            'debug_check' => 'No valid recipient email was available for the delivery test.',
+            'message'     => 'Missing valid recipient email.',
+            'mode'        => $mode,
+            'timestamp'   => current_time('mysql'),
+            'email'       => null,
+        ], 500);
+    }
 
     if (defined('BFSM_DEBUG') && BFSM_DEBUG) {
         error_log('[BFSM] Mode: ' . $mode);
         error_log('[BFSM] IP: ' . $ip);
-        error_log('[BFSM] Attempting to send to: ' . ($to ?: '(auto mode, no email)'));
+        error_log('[BFSM] Attempting to send to: ' . $to);
     }
 
-    if ($manual) {
         $mail_debug = [
             'mailer' => '',
             'host'   => '',
@@ -330,20 +336,10 @@ function bfsmtp_status_check($request) {
             'smtp_host'       => $mail_debug['host'],
             'debug_check'     => $debug_output ?: ($mail_debug['error'] ?: $message_text),
             'message'         => $message_text,
+            'mode'            => $mode,
             'timestamp'       => current_time('mysql'),
             'email'           => $to,
         ], $http);
-    }
-
-    // AUTO: no email is sent. Return an OK if we reached here with a valid token.
-    remove_filter('wp_mail_from_name', $from_name_filter);
-    return bfsmtp_monitor_rest_response([
-        'status'      => 'ok',
-        'email_sent'  => false,
-        'debug_check' => 'Auto mode check: no email sent',
-        'timestamp'   => current_time('mysql'),
-        'email'       => null,
-    ], 200);
 }
 
 // === /token Endpoint Callback ===

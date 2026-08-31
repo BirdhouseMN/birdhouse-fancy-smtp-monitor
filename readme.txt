@@ -4,7 +4,7 @@ Tags: smtp, email monitor, wordpress email, api
 Requires at least: 5.4
 Tested up to: 6.5
 Requires PHP: 7.4
-Stable tag: 1.0.36
+Stable tag: 1.0.37
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -16,8 +16,7 @@ Birdhouse Fancy SMTP Monitor is installed on child WordPress sites and responds 
 
 Core behavior:
 - Exposes status and token-sync REST endpoints for the manager plugin
-- Supports manual verification checks that trigger a real `wp_mail()` send
-- Supports lightweight auto checks (no child email send in healthy mode)
+- Supports manual and automatic verification checks that trigger a real `wp_mail()` send
 - Uses token-based authentication for remote status checks
 - Provides a Token Sync Key workflow for secure token retrieval by manager site
 
@@ -29,6 +28,9 @@ Core behavior:
 4. Copy the **Token Sync Key** and use it in the manager dashboard monitor record.
 
 == Changelog ==
+
+= 1.0.37 =
+* Auto checks now perform a real child-site email send so OK means delivery was verified, not just that the REST endpoint responded.
 
 = 1.0.36 =
 * Treat any successful WordPress `wp_mail()` send as a passing email delivery check, while still reporting SMTP transport details for diagnostics.
