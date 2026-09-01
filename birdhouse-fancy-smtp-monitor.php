@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.37
+ * Version: 1.0.38
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.37');
+    define('BFSMTP_MONITOR_VERSION', '1.0.38');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -168,11 +168,14 @@ function bfsmtp_status_check($request) {
         'Reply-To: security@birdhousemanager.com',
     ];
 
-    // Neutral copy works for both manual-button tests and incident verifications
-    $subject = '[BFSM] SMTP Verification';
-    $message = "This message confirms the site responded to an email delivery verification request from the Birdhouse Manager.\n\n"
-             . "The site successfully sent this email using its current WordPress mail setup.\n\n"
-             . "No action is needed unless this message lands in spam or has unexpected formatting.";
+    $subject = ($mode === 'auto') ? '[BFSM Probe] Automatic Email Verification' : '[BFSM Manual] Email Verification';
+    $message = ($mode === 'auto')
+        ? "This is an automatic proof email from the Birdhouse SMTP Monitor.\n\n"
+            . "The child site successfully sent this email using its current WordPress mail setup.\n\n"
+            . "No action is needed unless the manager dashboard reports a failure."
+        : "This message confirms a manual email delivery test from the Birdhouse Manager.\n\n"
+            . "The child site successfully sent this email using its current WordPress mail setup.\n\n"
+            . "No action is needed unless this message lands in spam or has unexpected formatting.";
 
     // Both manual and auto checks must attempt a real send so "OK" means email delivery worked.
     $to = is_email($notify_param) ? $notify_param : get_option('admin_email');
