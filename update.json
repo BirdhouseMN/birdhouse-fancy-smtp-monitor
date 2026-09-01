@@ -1,14 +1,14 @@
 {
   "name": "Birdhouse Fancy SMTP Monitor",
   "slug": "birdhouse-fancy-smtp-monitor",
-  "version": "1.0.38",
-  "download_url": "https://github.com/BirdhouseMN/birdhouse-fancy-smtp-monitor/releases/download/v1.0.38/birdhouse-fancy-smtp-monitor-1.0.38-release.zip",
+  "version": "1.0.39",
+  "download_url": "https://github.com/BirdhouseMN/birdhouse-fancy-smtp-monitor/releases/download/v1.0.39/birdhouse-fancy-smtp-monitor-1.0.39-release.zip",
   "requires": "5.4",
   "tested": "6.5",
   "requires_php": "7.4",
-  "last_updated": "2026-09-01 10:30:00",
+  "last_updated": "2026-09-01 16:45:00",
   "sections": {
     "description": "Lightweight child-site companion for Birdhouse Fancy SMTP Dashboard.",
-    "changelog": "1.0.38: Label child-site proof emails as manual or automatic so successful auto probes can be filtered out of normal inboxes. 1.0.37: Auto checks now perform a real child-site email send so OK means delivery was verified, not just that the REST endpoint responded."
+    "changelog": "1.0.39: Remove the Birdhouse security Reply-To header from child-site verification emails. 1.0.38: Label child-site proof emails as manual or automatic so successful auto probes can be filtered out of normal inboxes."
   }
 }

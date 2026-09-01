@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.38
+ * Version: 1.0.39
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -10,7 +10,7 @@
 if (!defined('ABSPATH')) exit;
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.38');
+    define('BFSMTP_MONITOR_VERSION', '1.0.39');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -162,10 +162,8 @@ function bfsmtp_status_check($request) {
     };
     add_filter('wp_mail_from_name', $from_name_filter);
 
-    // Add a Reply-To to your security inbox
     $headers = [
         'Content-Type: text/plain; charset=UTF-8',
-        'Reply-To: security@birdhousemanager.com',
     ];
 
     $subject = ($mode === 'auto') ? '[BFSM Probe] Automatic Email Verification' : '[BFSM Manual] Email Verification';
