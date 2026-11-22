@@ -2,15 +2,17 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.39
+ * Version: 1.0.40
  * Author: Birdhouse Web Design
  * License: GPL2
  */
 
 if (!defined('ABSPATH')) exit;
 
+require_once __DIR__ . '/includes/bfsmtp-proof-email.php';
+
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.39');
+    define('BFSMTP_MONITOR_VERSION', '1.0.40');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -157,23 +159,22 @@ function bfsmtp_status_check($request) {
     }
 
     // Use a safe From name only. Do not override From address to avoid DMARC conflicts.
-    $from_name_filter = function () {
-        return 'Birdhouse SMTP Monitor';
+    $proof = $mode === 'manual' ? bfsmtp_proof_parts() : null;
+    $from_name_filter = function () use ($proof) {
+        return $proof ? 'Website email test - ' . $proof['identity'] : 'Birdhouse SMTP Monitor';
     };
     add_filter('wp_mail_from_name', $from_name_filter);
 
     $headers = [
-        'Content-Type: text/plain; charset=UTF-8',
+        $proof ? 'Content-Type: text/html; charset=UTF-8' : 'Content-Type: text/plain; charset=UTF-8',
     ];
 
-    $subject = ($mode === 'auto') ? '[BFSM Probe] Automatic Email Verification' : '[BFSM Manual] Email Verification';
+    $subject = ($mode === 'auto') ? '[BFSM Probe] Automatic Email Verification' : $proof['subject'];
     $message = ($mode === 'auto')
         ? "This is an automatic proof email from the Birdhouse SMTP Monitor.\n\n"
             . "The child site successfully sent this email using its current WordPress mail setup.\n\n"
             . "No action is needed unless the manager dashboard reports a failure."
-        : "This message confirms a manual email delivery test from the Birdhouse Manager.\n\n"
-            . "The child site successfully sent this email using its current WordPress mail setup.\n\n"
-            . "No action is needed unless this message lands in spam or has unexpected formatting.";
+        : $proof['html'];
 
     // Both manual and auto checks must attempt a real send so "OK" means email delivery worked.
     $to = is_email($notify_param) ? $notify_param : get_option('admin_email');
@@ -203,8 +204,13 @@ function bfsmtp_status_check($request) {
             'error'  => '',
         ];
 
-        $phpmailer_capture = function ($phpmailer) use (&$mail_debug) {
+        $phpmailer_capture = function ($phpmailer) use (&$mail_debug, $proof) {
             if (is_object($phpmailer)) {
+                if ($proof) {
+                    $phpmailer->AltBody = $proof['plain'];
+                    $logo = __DIR__ . '/assets/birdhouse-logo-inverted.png';
+                    if (is_readable($logo)) $phpmailer->addEmbeddedImage($logo, 'bfsmtp-proof-logo.png', 'birdhouse-logo.png', 'base64', 'image/png');
+                }
                 $mail_debug['mailer'] = isset($phpmailer->Mailer) ? sanitize_text_field((string) $phpmailer->Mailer) : '';
                 $mail_debug['host']   = isset($phpmailer->Host) ? sanitize_text_field((string) $phpmailer->Host) : '';
             }
@@ -475,3 +481,4 @@ function bfsmtp_render_settings_page() {
     </div>
     <?php
 }
+
