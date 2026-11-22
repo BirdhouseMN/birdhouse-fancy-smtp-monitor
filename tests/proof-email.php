@@ -37,6 +37,7 @@ check(strpos($s['name'],'americanlandandcapital.com')!==false,'Sender display id
 check(strpos($s['message'],'Sent directly by this website')!==false,'Visible source');
 check(strpos($s['message'],'It was not sent by Birdhouse Manager')!==false,'Manager distinction');
 check(strpos($s['mailer']->AltBody,'Website: https://americanlandandcapital.com/')!==false,'Plain alternative');
+if(is_readable(dirname(__DIR__).'/assets/birdhouse-logo-inverted.png'))check(count($s['mailer']->embedded)===1,'Logo attachment');
 check($s['headers']===['Content-Type: text/html; charset=UTF-8'],'No sender-address or reply-to override');
 check(strpos($s['message'],'test-only-token')===false,'Secret must not appear');
 check(empty($hooks['phpmailer_init'])&&empty($hooks['wp_mail_from_name']),'Scoped hooks cleaned');
