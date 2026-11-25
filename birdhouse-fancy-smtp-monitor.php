@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Birdhouse Fancy SMTP Monitor
  * Description: Responds to remote SMTP status checks from a central manager site.
- * Version: 1.0.40
+ * Version: 1.0.41
  * Author: Birdhouse Web Design
  * License: GPL2
  */
@@ -12,7 +12,7 @@ if (!defined('ABSPATH')) exit;
 require_once __DIR__ . '/includes/bfsmtp-proof-email.php';
 
 if (!defined('BFSMTP_MONITOR_VERSION')) {
-    define('BFSMTP_MONITOR_VERSION', '1.0.40');
+    define('BFSMTP_MONITOR_VERSION', '1.0.41');
 }
 
 function bfsmtp_monitor_response_meta() {
@@ -208,8 +208,7 @@ function bfsmtp_status_check($request) {
             if (is_object($phpmailer)) {
                 if ($proof) {
                     $phpmailer->AltBody = $proof['plain'];
-                    $logo = __DIR__ . '/assets/birdhouse-logo-inverted.png';
-                    if (is_readable($logo)) $phpmailer->addEmbeddedImage($logo, 'bfsmtp-proof-logo.png', 'birdhouse-logo.png', 'base64', 'image/png');
+                    bfsmtp_embed_proof_logo($phpmailer);
                 }
                 $mail_debug['mailer'] = isset($phpmailer->Mailer) ? sanitize_text_field((string) $phpmailer->Mailer) : '';
                 $mail_debug['host']   = isset($phpmailer->Host) ? sanitize_text_field((string) $phpmailer->Host) : '';

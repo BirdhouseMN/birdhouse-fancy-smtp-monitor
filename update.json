@@ -1,14 +1,14 @@
 {
   "name": "Birdhouse Fancy SMTP Monitor",
   "slug": "birdhouse-fancy-smtp-monitor",
-  "version": "1.0.40",
-  "download_url": "https://raw.githubusercontent.com/BirdhouseMN/birdhouse-fancy-smtp-monitor/main/packages/birdhouse-fancy-smtp-monitor-1.0.40-release.zip",
+  "version": "1.0.41",
+  "download_url": "https://raw.githubusercontent.com/BirdhouseMN/birdhouse-fancy-smtp-monitor/main/packages/birdhouse-fancy-smtp-monitor-1.0.41-release.zip",
   "requires": "5.4",
-  "tested": "6.5",
+  "tested": "7.1",
   "requires_php": "7.4",
-  "last_updated": "2026-11-22 20:00:00",
+  "last_updated": "2026-11-25 19:20:45",
   "sections": {
     "description": "Lightweight child-site companion for Birdhouse Fancy SMTP Dashboard.",
-    "changelog": "1.0.40: Branded manual website proof emails with clear originating-domain labels. Delivery behavior and automatic proof subjects unchanged."
+    "changelog": "1.0.41: Fix inline Birdhouse logo in manual website proof emails sent through SMTP2GO. Delivery checks and automatic emails are unchanged."
   }
 }

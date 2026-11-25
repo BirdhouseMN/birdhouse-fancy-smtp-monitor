@@ -1,6 +1,6 @@
 <?php
 define('ABSPATH', __DIR__ . '/');
-$hooks = []; $sends = []; $send_ok = true;
+$hooks = []; $sends = []; $send_ok = true; $can_embed = true;
 function add_action($n,$f,...$args) { $GLOBALS['hooks'][$n][]=$f; }
 function add_filter($n,$f,...$args) { add_action($n,$f); }
 function remove_action($n,$f,...$args) { $GLOBALS['hooks'][$n]=array_filter($GLOBALS['hooks'][$n]??[],static function($x)use($f){return $x!==$f;}); }
@@ -22,7 +22,15 @@ class WP_REST_Response { public $data,$status; function __construct($d,$s){$this
 class Request { public $mode,$token; function __construct($mode,$token='test-only-token'){$this->mode=$mode;$this->token=$token;} function get_header($n){return $this->token;} function get_param($n){return $n==='mode'?$this->mode:($n==='notify'?'test@example.test':'');} }
 function get_transient($k){return false;} function set_transient(...$a){}
 function wp_mail($to,$subject,$message,$headers) {
-    $mailer=new class { public $AltBody='',$Mailer='smtp',$Host='configured.example'; public $embedded=[]; function addEmbeddedImage(...$args){$this->embedded[]=$args;} };
+    $mailer=new class {
+        public $AltBody='',$Body='',$Mailer='smtp',$Host='configured.example',$embedded=[];
+        function addStringEmbeddedImage(...$args){
+            if (!$GLOBALS['can_embed']) return false;
+            $this->embedded[]=$args;
+            return true;
+        }
+    };
+    $mailer->Body=$message;
     foreach($GLOBALS['hooks']['phpmailer_init']??[] as $f)$f($mailer);
     $name='Site sender';foreach($GLOBALS['hooks']['wp_mail_from_name']??[] as $f)$name=$f($name);
     $GLOBALS['sends'][]=compact('to','subject','message','headers','mailer','name');
@@ -37,7 +45,14 @@ check(strpos($s['name'],'americanlandandcapital.com')!==false,'Sender display id
 check(strpos($s['message'],'Sent directly by this website')!==false,'Visible source');
 check(strpos($s['message'],'It was not sent by Birdhouse Manager')!==false,'Manager distinction');
 check(strpos($s['mailer']->AltBody,'Website: https://americanlandandcapital.com/')!==false,'Plain alternative');
-if(is_readable(dirname(__DIR__).'/assets/birdhouse-logo-inverted.png'))check(count($s['mailer']->embedded)===1,'Logo attachment');
+$logo_path=dirname(__DIR__).'/assets/birdhouse-logo-inverted.png';
+check($s['mailer']->embedded===[[file_get_contents($logo_path),'bfsmtp-proof-logo.png','birdhouse-logo.png','base64','image/png']],'PNG bytes must be embedded inline with the intended Content-ID');
+check(strpos($s['mailer']->Body,'src="cid:bfsmtp-proof-logo.png"')!==false,'HTML uses the embedded Content-ID');
+$can_embed=false;
+bfsmtp_status_check(new Request('manual'));
+$fallback=end($sends);
+check(strpos($fallback['mailer']->Body,BFSMTP_PROOF_WORDMARK)!==false && strpos($fallback['mailer']->Body,'src="cid:')===false,'Embedding failure keeps the text wordmark');
+$can_embed=true;
 check($s['headers']===['Content-Type: text/html; charset=UTF-8'],'No sender-address or reply-to override');
 check(strpos($s['message'],'test-only-token')===false,'Secret must not appear');
 check(empty($hooks['phpmailer_init'])&&empty($hooks['wp_mail_from_name']),'Scoped hooks cleaned');
